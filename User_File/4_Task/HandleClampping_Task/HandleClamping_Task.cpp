@@ -44,7 +44,7 @@ void HandleClamping_Task()
     {
             // 消费按钮队列 → 触发状态转移（单次调用）
         uint8_t btn_raw;
-        static Enum_Handle_State handle_state = STATE_RCH;
+        static Enum_Handle_State handle_state = STATE_ABT;
         static Enum_Clamping_State clamping_state = STATE_CLOSED;
         while (osMessageQueueGet(g_ctrl_handleclamping_queue, &btn_raw, NULL, 0U) == osOK)
         {
@@ -149,7 +149,7 @@ void Handle_MoveToAbutting()
  ******************************************************************************/
 void Clamping_Close()
 {
-    //加气缸
+    HAL_GPIO_WritePin(GPIOE, GPIO_PIN_13, GPIO_PIN_SET);
 }
 
 /******************************************************************************
@@ -158,7 +158,7 @@ void Clamping_Close()
  ******************************************************************************/
 void Clamping_Open()
 {
-    //加气缸
+    HAL_GPIO_WritePin(GPIOE, GPIO_PIN_13, GPIO_PIN_RESET);
 }
 
 /******************************************************************************

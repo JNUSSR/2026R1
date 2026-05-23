@@ -104,7 +104,7 @@ int main(void)
   PeriphCommonClock_Config();
 
   /* USER CODE BEGIN SysInit */
-
+  HAL_Delay(2000);
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
@@ -123,7 +123,7 @@ int main(void)
   MX_USART10_UART_Init();
   MX_SPI2_Init();
   MX_SPI6_Init();
-  //MX_IWDG1_Init();
+  MX_IWDG1_Init();
   MX_TIM1_Init();
   MX_TIM2_Init();
   MX_TIM3_Init();

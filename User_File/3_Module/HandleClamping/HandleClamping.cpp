@@ -101,10 +101,10 @@ void Class_HandleClamping::Calibrate()
                 Motor_Handle_2_.Mode_Switch(Motor_DM_Control_Method_NORMAL_ANGLE_OMEGA);
                 Motor_Handle_2_.Set_Control_Omega(HANDLE_MOTOR_CONTROL_OMEGA);
                 // float soft_zero = Motor_Handle_2_.Get_Now_Angle();
-                Angle_Reset_ = Pos_Min_ + 42.0f + HANDLE_MOTOR_INIT_INCREANGLE; //根据电机的实际转动方向选择是Pos_Max_,是加还是减
+                Angle_Reset_ = Pos_Min_ + 45.0f + HANDLE_MOTOR_INIT_INCREANGLE; //根据电机的实际转动方向选择是Pos_Max_,是加还是减
                 Angle_Reach_ = Angle_Reset_ + HANDLE_POS_REACH_INCREANGLE;
-                Angle_Abutting_ = Pos_Min_ + 42.0f;
-                Motor_Handle_Set_Angle(Pos_Min_ + 42.0f);
+                Angle_Abutting_ = Pos_Min_ + 45.0f;
+                Motor_Handle_Set_Angle(Pos_Min_ + 45.0f);
                     //获取并设置软零点位置
                 break;
             }
