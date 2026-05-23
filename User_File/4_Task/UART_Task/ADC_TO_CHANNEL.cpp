@@ -7,14 +7,14 @@
 
 #define LX_MIN 6
 #define LX_MAX 4059
-#define RX_MIN 925
-#define RX_MAX 3333
-#define RY_MIN 924
-#define RY_MAX 2983
+#define RX_MIN 69
+#define RX_MAX 4089
+#define RY_MIN 26
+#define RY_MAX 3738
 
-#define LX_MID 1924
-#define RX_MID 2193
-#define RY_MID 2039
+#define LX_MID 1875
+#define RX_MID 2153
+#define RY_MID 1996
 
 struct G_CHANNEL_DATA g_channel_data;
 

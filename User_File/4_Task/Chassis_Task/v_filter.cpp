@@ -1,63 +1,80 @@
-//
-// Created by chengfeng on 2026/5/23.
-//
-
 #include "v_filter.h"
-#include <stdio.h>
-#include <math.h>
 
-// 滤波器状态结构体，需要持久化保存
+
+#include <math.h>
+#include <stdio.h>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846f
+#endif
+
 
 
 /**
  * @brief 初始化速度平滑器
+ * @param deadzone_v 摇杆死区阈值。若你的速度输入范围是 0~1.0，通常设为 0.05 ~ 0.15。
  */
-void init_smoother(VelocitySmoother *smoother, float alpha_v, float alpha_theta) {
-    smoother->v_smooth = 0.0;
-    smoother->theta_smooth = 0.0;
+void init_smoother(VelocitySmoother *smoother, float alpha_v, float alpha_theta, float snap_angle_deg, float deadzone_v) {
+    smoother->v_smooth = 0.0f;
+    smoother->theta_smooth = 0.0f;
     smoother->alpha_v = alpha_v;
     smoother->alpha_theta = alpha_theta;
+    smoother->snap_tolerance_rad = snap_angle_deg * ((float)M_PI / 180.0f);
+    smoother->deadzone_v = deadzone_v; // 保存死区阈值
 }
 
-/**
- * @brief 规范化角度到 [-pi, pi] 之间
- */
 float normalize_angle(float angle) {
-    // 使用 atan2(sin, cos) 是将角度规范化到 [-PI, PI] 最鲁棒的方法
-    return atan2(sin(angle), cos(angle));
+    return atan2f(sinf(angle), cosf(angle));
 }
 
-/**
- * @brief 核心平滑函数
- * @param smoother 滤波器状态结构体指针
- * @param vx_in 输入的 vx 阶跃值
- * @param vy_in 输入的 vy 阶跃值
- * @param vx_out 输出的平滑后 vx 指针
- * @param vy_out 输出的平滑后 vy 指针
- */
 void smooth_velocity(VelocitySmoother *smoother, float vx_in, float vy_in, float *vx_out, float *vy_out) {
 
-    // 1. 将输入的笛卡尔坐标转换为极坐标 (目标大小和目标角度)
-    float v_target = sqrt(vx_in * vx_in + vy_in * vy_in);
-    float theta_target = smoother->theta_smooth; // 默认保持当前角度
+    // 1. 获取目标大小
+    float v_target = sqrtf(vx_in * vx_in + vy_in * vy_in);
+    float theta_target = smoother->theta_smooth; // 默认锁定当前角度
 
-    // 奇点保护：只有当目标速度大于一个极小值时，才更新目标角度。
-    // 防止速度为 0 时 atan2(0,0) 产生随机角度跳变，导致原地乱转。
-    if (v_target > 1e-5) {
-        theta_target = atan2(vy_in, vx_in);
+    // ==========================================
+    // [核心修正]：物理死区保护
+    // ==========================================
+    if (v_target > smoother->deadzone_v) {
+        // 摇杆推力大于死区，正常更新目标角度
+        theta_target = atan2f(vy_in, vx_in);
+
+        // 正交方向吸附
+        if (smoother->snap_tolerance_rad > 0.0f) {
+            float half_pi = (float)M_PI / 2.0f;
+            float closest_cardinal = roundf(theta_target / half_pi) * half_pi;
+            float diff = fabsf(normalize_angle(theta_target - closest_cardinal));
+            if (diff <= smoother->snap_tolerance_rad) {
+                theta_target = normalize_angle(closest_cardinal);
+            }
+        }
+    } else {
+        // 摇杆处于死区内 (包含回弹震荡状态)
+        // 强制目标速度为 0，彻底消除角色的微小滑动
+        v_target = 0.0f;
+
+        // 注意：这里没有更新 theta_target。
+        // 它会保持与 smoother->theta_smooth 一致，
+        // 使得后续的 delta_theta = 0，完美避开 90 度突变逻辑。
     }
 
-    // 2. 独立平滑大小 (一阶低通滤波)
-    smoother->v_smooth = (1.0 - smoother->alpha_v) * smoother->v_smooth + (smoother->alpha_v * v_target);
-
-    // 3. 独立平滑角度
-    // 计算最短角度差，解决 179 度到 -179 度直接相减导致大旋转的问题
+    // 2. 计算最短角度差
     float delta_theta = normalize_angle(theta_target - smoother->theta_smooth);
 
-    // 更新平滑角度，并重新规范化以防止数值溢出
-    smoother->theta_smooth = normalize_angle(smoother->theta_smooth + smoother->alpha_theta * delta_theta);
+    // 3. 处理角度：大角度突变逻辑
+    float half_pi = (float)M_PI / 2.0f;
+    if (fabsf(delta_theta) > half_pi) {
+        smoother->v_smooth = smoother->v_smooth * cosf(delta_theta);
+        smoother->theta_smooth = theta_target;
+    } else {
+        smoother->theta_smooth = normalize_angle(smoother->theta_smooth + smoother->alpha_theta * delta_theta);
+    }
 
-    // 4. 将平滑后的极坐标还原回笛卡尔坐标输出
-    *vx_out = smoother->v_smooth * cos(smoother->theta_smooth);
-    *vy_out = smoother->v_smooth * sin(smoother->theta_smooth);
+    // 4. 速度大小进行平滑滤波
+    smoother->v_smooth = (1.0f - smoother->alpha_v) * smoother->v_smooth + (smoother->alpha_v * v_target);
+
+    // 5. 还原为笛卡尔坐标
+    *vx_out = smoother->v_smooth * cosf(smoother->theta_smooth);
+    *vy_out = smoother->v_smooth * sinf(smoother->theta_smooth);
 }
