@@ -13,7 +13,7 @@
 #include "fdcan.h"
 #include "usart.h"
 #include "gpio.h"
-
+#include "v_filter.h"
 // 中间件驱动
 #include "1_Middleware/Driver/CAN/drv_can.h"
 #include "1_Middleware/Driver/UART/drv_uart.h"
@@ -29,6 +29,8 @@
 #include <math.h>
 #include <string.h>
 
+VelocitySmoother smoother;
+
 /* Private macros ------------------------------------------------------------*/
 
 #define PI 3.14159265358979323846f
@@ -39,7 +41,7 @@
 #define WHEEL_RADIUS     0.06f   // 轮子半径 (m)
 
 // 遥控参数
-#define RC_BASE_LINEAR_SPEED    5.0f   // 摇杆推满时底盘基准线速度 (m/s)
+#define RC_BASE_LINEAR_SPEED    1.0f   // 摇杆推满时底盘基准线速度 (m/s)
 // 四个轮子独立的摇杆输入缩放比例: 各轮角速度 = 基准角速度 × 该比例
 // 例如 RC_OMEGA_GAIN_M1=1.5 则该轮最高 50rad/s, RC_OMEGA_GAIN_M3=0.6 则最高 20rad/s
 #define RC_OMEGA_GAIN_M1        1//1.28f   // 3508#1 (左前) 输入缩放 （1.30）
@@ -47,9 +49,9 @@
 #define RC_OMEGA_GAIN_M3        1//1.24f   // 3508#3 (右后) 输入缩放
 #define RC_OMEGA_GAIN_M4        1//1.112f   // 3508#4 (左后) 输入缩放
 #define RC_OMEGA_GAIN_PER_WHEEL {RC_OMEGA_GAIN_M1, RC_OMEGA_GAIN_M2, RC_OMEGA_GAIN_M3, RC_OMEGA_GAIN_M4}
-#define RC_TO_VW_SCALE         0.1f   // 旋转角速度比例
-#define RC_DEADBAND            10.0f  // 右摇杆平移死区 (%)
-#define RC_ROTATION_DEADBAND   10.0f   // 左摇杆旋转死区 (%)
+#define RC_TO_VW_SCALE         0.02f   // 旋转角速度比例
+#define RC_DEADBAND            15.0f  // 右摇杆平移死区 (%)
+#define RC_ROTATION_DEADBAND   15.0f   // 左摇杆旋转死区 (%)
 #define RC_ANGLE_DEADBAND      0.1f  // 角度变化死区 (rad)约2.8°(0.05f)，小于此变化不更新方向
 #define RC_RETURN_DELAY_TICKS  1600    // 摇杆居中延迟
 
@@ -582,6 +584,8 @@ static float Chassis_NormalizeAngle(float angle)
 void Chassis_Task_Init(void)
 {
     // ---- 1. M3508 PID 初始化
+    init_smoother(&smoother,0.01,0.01);
+
 
     for (int i = 0; i < 4; i++)
     {
@@ -696,6 +700,10 @@ void Chassis_Task(void *argument) {
             float lx = g_channel_data.Lx;
             float rx = g_channel_data.Rx;
             float ry = g_channel_data.Ry;
+            float filter_vx, filter_vy;
+            smooth_velocity(&smoother,rx,ry,&filter_vx,&filter_vy);
+            rx = filter_vx;
+            ry = filter_vy;
             float dist = sqrtf(rx * rx + ry * ry);
 
             // 滞回死区: 进用 RC_DEADBAND, 出用 1.5x

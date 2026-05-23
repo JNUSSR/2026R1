@@ -25,11 +25,11 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "Task_UART.h"
-#include "Task_KFS_Arm.h"
-#include "tsk_config_and_callback.h"
-#include "HandleClamping_Task.h"
 #include "Chassis_Task.h"
+#include "HandleClamping_Task.h"
+#include "Task_KFS_Arm.h"
+#include "Task_UART.h"
+#include "tsk_config_and_callback.h"
 extern UART_HandleTypeDef huart7;
 
 /* USER CODE END Includes */
