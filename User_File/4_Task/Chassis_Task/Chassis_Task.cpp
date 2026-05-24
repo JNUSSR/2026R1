@@ -49,7 +49,7 @@ VelocitySmoother smoother;
 #define RC_OMEGA_GAIN_M3        1//1.24f   // 3508#3 (右后) 输入缩放
 #define RC_OMEGA_GAIN_M4        1//1.112f   // 3508#4 (左后) 输入缩放
 #define RC_OMEGA_GAIN_PER_WHEEL {RC_OMEGA_GAIN_M1, RC_OMEGA_GAIN_M2, RC_OMEGA_GAIN_M3, RC_OMEGA_GAIN_M4}
-#define RC_TO_VW_SCALE         0.03   f   // 旋转角速度比例
+#define RC_TO_VW_SCALE         0.03f   // 旋转角速度比例
 #define RC_DEADBAND            15.0f  // 右摇杆平移死区 (%)
 #define RC_ROTATION_DEADBAND   15.0f   // 左摇杆旋转死区 (%)
 #define RC_ANGLE_DEADBAND      0.1f  // 角度变化死区 (rad)约2.8°(0.05f)，小于此变化不更新方向
@@ -704,6 +704,14 @@ void Chassis_Task(void *argument) {
             smooth_velocity(&smoother,rx,ry,&filter_vx,&filter_vy);
             rx = filter_vx;
             ry = filter_vy;
+
+            //TODO:将角度改为底盘的yaw角
+            float theta = 0.0f;
+            float car_vx = cos(theta)*rx + sin(theta)*ry;
+            float car_vy = -sin(theta)*rx + cos(theta)*ry;
+            rx = car_vx;
+            ry = car_vy;
+
             float dist = sqrtf(rx * rx + ry * ry);
 
             // 滞回死区: 进用 RC_DEADBAND, 出用 1.5x
@@ -820,7 +828,7 @@ void Chassis_Task(void *argument) {
                     vofa_data[i * 2]     = Motor_3508[i].Get_Target_Omega();
                     vofa_data[i * 2 + 1] = Motor_3508[i].Get_Now_Omega();
                 }
-                vofa_printf(vofa_data, 8);
+                //vofa_printf(vofa_data, 8);
             }
         }
         else
