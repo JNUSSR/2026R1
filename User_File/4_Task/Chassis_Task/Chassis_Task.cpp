@@ -49,7 +49,7 @@ VelocitySmoother smoother;
 #define RC_OMEGA_GAIN_M3        1//1.24f   // 3508#3 (右后) 输入缩放
 #define RC_OMEGA_GAIN_M4        1//1.112f   // 3508#4 (左后) 输入缩放
 #define RC_OMEGA_GAIN_PER_WHEEL {RC_OMEGA_GAIN_M1, RC_OMEGA_GAIN_M2, RC_OMEGA_GAIN_M3, RC_OMEGA_GAIN_M4}
-#define RC_TO_VW_SCALE         0.03   f   // 旋转角速度比例
+#define RC_TO_VW_SCALE         0.03f   // 旋转角速度比例
 #define RC_DEADBAND            15.0f  // 右摇杆平移死区 (%)
 #define RC_ROTATION_DEADBAND   15.0f   // 左摇杆旋转死区 (%)
 #define RC_ANGLE_DEADBAND      0.1f  // 角度变化死区 (rad)约2.8°(0.05f)，小于此变化不更新方向

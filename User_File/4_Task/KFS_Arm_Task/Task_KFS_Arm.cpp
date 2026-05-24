@@ -1,6 +1,7 @@
 #include "Task_KFS_Arm.h"
 #include "arm_sequence_player.h"
 #include "planned_joint.h"
+#include "stm32h723xx.h"
 #include "uart_command.h"
 #include "dvc_motor_dji.h"
 #include "kfs_arm.h"
@@ -8,10 +9,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <math.h>
-
-
-//使用四个m2006电机，挂载在CAN2,ID为201 202 205 206
-
 /* ======== Configs ========= */
 const float dt  = 0.001f; // 1ms 更新周期
 constexpr float ratio_joint1 = (120.0 / 30.0); // 电机输出轴转动弧度与关节实际转动弧度的比�?
@@ -45,7 +42,7 @@ constexpr float joint1_zero_pos = M_PI; // joint1的零点位置，单位弧度
 constexpr float joint2_zero_pos = 0; // joint2的零点位置，单位米
 //激活后机械臂的初始位置（与上电前位置可能不同，取决于机械臂的安装位置和期望的激活位置）
 constexpr float joint1_init_pos = M_PI / 6.0f;
-constexpr float joint2_init_pos = joint2_when_joint1_at_acute_angle_min_pos; 
+constexpr float joint2_init_pos = 0.42f; 
 
 /* 下面的上场时根据实际情况定 */
 
@@ -53,12 +50,12 @@ const float joint1_motion_s = joint1_90;
 const float joint1_motion_b = joint1_180;
 //因为只有俩arm，所以最多只有两个可能要去的高度，就可以直接用上或下表示
 const float joint2_motion_up = joint2_400;
-const float joint2_motion_down = joint2_200;
+const float joint2_motion_down = joint2_0;
 
 const float arm1_joint1_ready_motion_pos = joint1_motion_s; // arm1准备就绪的动作位置，单位米
 const float arm2_joint1_ready_motion_pos = joint1_motion_s; // arm2准备就绪的动作位置，单位米
-const float arm1_joint2_ready_motion_pos = joint2_motion_up; // arm1准备就绪的动作位置，单位米
-const float arm2_joint2_ready_motion_pos = joint2_motion_up; // arm2准备就绪的动作位置，单位米
+const float arm1_joint2_ready_motion_pos = joint2_motion_down; // arm1准备就绪的动作位置，单1位米
+const float arm2_joint2_ready_motion_pos = joint2_motion_down; // arm2准备就绪的动作位置，单位米
 
 const float joint2_put_kfs_pos = joint2_400; // 放下阶段关节2的目标位置
 
@@ -125,8 +122,8 @@ PlannedJoint arm2_joint2(
     dt
 );
 
-Cylinder arm1_hand(GPIOC, GPIO_PIN_13); 
-Cylinder arm2_hand(GPIOC, GPIO_PIN_14);
+Cylinder arm1_hand(GPIOA, GPIO_PIN_2); 
+Cylinder arm2_hand(GPIOA, GPIO_PIN_0);
 
 ArmSequencePlayer<2> player1(arm1_joint1, arm1_joint2);
 ArmSequencePlayer<2> player2(arm2_joint1, arm2_joint2);
@@ -168,11 +165,26 @@ const ArmStep<2> DrawKFS[] = {
     nullptr}, 
 };
 
-const ArmStep<2> RetryDrawing[] = {
+const ArmStep<2> RetryDrawing_Arm1[] = {
     {{VOID_CMD, {NAN, 1.0f}},
     [](void *context){((KFS_Arm*)context)->pullHandBack();}, nullptr},
     {{VOID_CMD, {joint2_when_joint1_at_acute_angle_min_pos, 1.5f}},
     nullptr},
+        {{{arm1_joint1_ready_motion_pos, 2.0f}, VOID_CMD},
+    nullptr},
+    {{VOID_CMD, {arm1_joint2_ready_motion_pos, 2.0f}},
+    nullptr}
+};
+
+const ArmStep<2> RetryDrawing_Arm2[] = {
+    {{VOID_CMD, {NAN, 1.0f}},
+    [](void *context){((KFS_Arm*)context)->pullHandBack();}, nullptr},
+    {{VOID_CMD, {joint2_when_joint1_at_acute_angle_min_pos, 1.5f}},
+    nullptr},
+    {{{arm2_joint1_ready_motion_pos, 2.0f}, VOID_CMD},
+    nullptr},
+    {{VOID_CMD, {arm2_joint2_ready_motion_pos, 2.0f}},
+    nullptr}
 };
 
 const ArmStep<2> PutKFSAndReturn[] = {
@@ -191,7 +203,7 @@ const ArmStep<2> PutKFSAndReturn[] = {
 
 
 
-//CAN2
+
 
 void Task_KFS_Arm_Init(void){
     // Init arm1 motor pair
@@ -201,7 +213,6 @@ void Task_KFS_Arm_Init(void){
         , 0.0f
         , 0.0f
         , 1.0f
-        , 2
     );
     arm1_joint1_motor.PID_Angle.Init(
         10.0f
@@ -296,7 +307,6 @@ void Task_KFS_Arm_Init(void){
     // zero_pos_joint2 = arm2_joint2_motor.Get_Now_Angle() / ratio_joint2; // 通过读取当前电机位置来设定零点，确保上电后机械臂保持当前位置不动
     // arm2_joint2.setZeroPos(zero_pos_joint2);
 }
-#if DEBUG_MODE == 0
 void Task_KFS_Arm_StateHandler(KFS_Arm& arm, CtrlButtons btn){//在消费指令时调用，只执行一次
     switch(arm.state_){
         case KFS_Arm::ORIGIN:
@@ -310,7 +320,8 @@ void Task_KFS_Arm_StateHandler(KFS_Arm& arm, CtrlButtons btn){//在消费指令�
                 arm.state_ = KFS_Arm::ALLOW_MOTION;
                 if(&arm == &arm1_kfs_arm){
                     arm.playSequence(GetReady4Motion_Arm1, ARRAY_LEN(GetReady4Motion_Arm1));
-                    arm.joint1_motion_state_ = arm1_joint1_ready_motion_pos == joint1_motion_s ? KFS_Arm::DEGS : KFS_Arm::DEGB;
+                  
+                  
                     arm.joint2_motion_state_ = arm1_joint2_ready_motion_pos == joint2_motion_up ? KFS_Arm::UP : KFS_Arm::DOWN;
                 }
                 else{
@@ -337,8 +348,20 @@ void Task_KFS_Arm_StateHandler(KFS_Arm& arm, CtrlButtons btn){//在消费指令�
                     arm.playSequence(PutKFSAndReturn, ARRAY_LEN(PutKFSAndReturn));
                 }
                 else if (btn == Btn_Joint1 || btn == Btn_Joint2){ //如果没吸到，重来
-                    arm.state_ = KFS_Arm::INIT_POS;
-                    arm.pullHandBack();
+                    arm.state_ = KFS_Arm::ALLOW_MOTION;
+                    // 注意：不在这里设置 MOTION_EN = true，否则 MotionCmdHandler
+                    // 会在同一个消息循环中紧接着触发关节运动指令，与重试序列冲突。
+                    // PlayingStateHandler 会在序列完成后自动置位 MOTION_EN。
+                    if(&arm == &arm1_kfs_arm){
+                        arm.playSequence(RetryDrawing_Arm1, ARRAY_LEN(RetryDrawing_Arm1));
+                        arm.joint1_motion_state_ = arm1_joint1_ready_motion_pos == joint1_motion_s ? KFS_Arm::DEGS : KFS_Arm::DEGB;
+                        arm.joint2_motion_state_ = arm1_joint2_ready_motion_pos == joint2_motion_up ? KFS_Arm::UP : KFS_Arm::DOWN;
+                    }
+                    else{
+                        arm.playSequence(RetryDrawing_Arm2, ARRAY_LEN(RetryDrawing_Arm2));
+                        arm.joint1_motion_state_ = arm2_joint1_ready_motion_pos == joint1_motion_s ? KFS_Arm::DEGS : KFS_Arm::DEGB;
+                        arm.joint2_motion_state_ = arm2_joint2_ready_motion_pos == joint2_motion_up ? KFS_Arm::UP : KFS_Arm::DOWN;
+                    }
                 }
             }
             break;
@@ -398,10 +421,8 @@ void Task_KFS_Arm_PlayingStateHandler(KFS_Arm& arm){
         arm.state_ = KFS_Arm::INIT_POS; // 放置完成后回到 INIT_POS 状态，等待下一轮指令
     }
 }
-#endif
 
 extern "C" void Task_KFS_Arm_Impl(){
-#if DEBUG_MODE == 0
     // ===== Mavlink 模式：状态机驱动 =====
     // 当前选中的活动机械臂（Btn_ArmSwitch 切换），默认 arm1
     static KFS_Arm* s_active_arm = &arm1_kfs_arm;
@@ -425,102 +446,6 @@ extern "C" void Task_KFS_Arm_Impl(){
     Task_KFS_Arm_PlayingStateHandler(arm1_kfs_arm);
     Task_KFS_Arm_PlayingStateHandler(arm2_kfs_arm);
 
-#else
-    // ===== 旧文本协议模式 =====
-    // 消费 UART 下发的机械臂指令
-    ArmUartCommand cmd;
-    while (osMessageQueueGet(g_arm_cmd_queue, &cmd, NULL, 0U) == osOK)
-    {
-        KFS_Arm &arm  = (cmd.arm == 0U) ? arm1_kfs_arm : arm2_kfs_arm;
-        auto &hand_cmd = (cmd.arm == 0U) ? arm1_hand_cmd : arm2_hand_cmd;
-
-        switch (cmd.action)
-        {
-        case 0:
-            if (arm.checkJoint1PosLimits(KFS_Arm::JOINT1_0))
-                arm.rotateTo(KFS_Arm::JOINT1_0);
-            break;
-        case 1:
-            if (arm.checkJoint1PosLimits(KFS_Arm::JOINT1_90))
-                arm.rotateTo(KFS_Arm::JOINT1_90);
-            break;
-        case 2:
-            if (arm.checkJoint1PosLimits(KFS_Arm::JOINT1_180))
-                arm.rotateTo(KFS_Arm::JOINT1_180);
-            break;
-        case 3:
-            if (arm.checkJoint2PosLimits(KFS_Arm::JOINT2_0mm))
-                arm.moveVerticallyTo(KFS_Arm::JOINT2_0mm);
-            break;
-        case 4:
-            if (arm.checkJoint2PosLimits(KFS_Arm::JOINT2_200mm))
-                arm.moveVerticallyTo(KFS_Arm::JOINT2_200mm);
-            break;
-        case 5:
-            if (arm.checkJoint2PosLimits(KFS_Arm::JOINT2_400mm))
-                arm.moveVerticallyTo(KFS_Arm::JOINT2_400mm);
-            break;
-        case 6:
-            if (arm.checkJoint2PosLimits(KFS_Arm::JOINT2_600mm))
-                arm.moveVerticallyTo(KFS_Arm::JOINT2_600mm);
-            break;
-        case 7:
-            hand_cmd = KFS_Arm::REACH_OUT;
-            break;
-        case 8:
-            hand_cmd = KFS_Arm::PULL_BACK;
-            break;
-        default:
-            break;
-        }
-    }
-
-    // 上电初始化保护：收到 "init1" 后才执行 InitOnActivate 动作序列
-    static bool s_init_sequence_played = false;
-    if (g_arm_init1_received) {
-        g_arm_init1_received = false;
-        arm2_kfs_arm.playSequence(InitOnActivate, ARRAY_LEN(InitOnActivate));
-        s_init_sequence_played = true;
-    }
-
-    bool skip_hand_cmd = false;
-    if (arm2_kfs_arm.isSequencePlaying()) {
-        skip_hand_cmd = true;
-    }
-    else if (s_init_sequence_played) {
-        s_init_sequence_played = false;
-    }
-
-    if (!skip_hand_cmd) {
-        // UpdateArm for arm1
-        {
-            switch (arm1_hand_cmd) {
-                case KFS_Arm::REACH_OUT:
-                    arm1_kfs_arm.reachHandOut();
-                    break;
-                case KFS_Arm::PULL_BACK:
-                    arm1_kfs_arm.pullHandBack();
-                    break;
-                default:
-                    break;
-            }
-        }
-
-        // UpdateArm for arm2
-        {
-            switch (arm2_hand_cmd) {
-                case KFS_Arm::REACH_OUT:
-                    arm2_kfs_arm.reachHandOut();
-                    break;
-                case KFS_Arm::PULL_BACK:
-                    arm2_kfs_arm.pullHandBack();
-                    break;
-                default:
-                    break;
-            }
-        }
-    }
-#endif
 
     // ===== 共用：电机更新 =====
     if (arm1_kfs_arm.isSequencePlaying()) {
