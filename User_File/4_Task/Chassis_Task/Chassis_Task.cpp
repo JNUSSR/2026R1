@@ -14,6 +14,7 @@
 #include "usart.h"
 #include "gpio.h"
 #include "v_filter.h"
+#include "bsp_bmi088.h"
 // 中间件驱动
 #include "1_Middleware/Driver/CAN/drv_can.h"
 #include "1_Middleware/Driver/UART/drv_uart.h"
@@ -31,6 +32,7 @@
 
 VelocitySmoother smoother;
 
+extern Class_Matrix_f32<3, 1> Euler;
 /* Private macros ------------------------------------------------------------*/
 
 #define PI 3.14159265358979323846f
@@ -156,7 +158,7 @@ static void IBUS_ProcessChannelData(const uint16_t channels[14]);
 
 // 底盘控制
 static void Chassis_ProcessRotation(float lx);
-static void Chassis_ProcessTranslation(float rx, float ry);
+static void Chassis_ProcessTranslation(float rx, float ry, float lx);
 static void Chassis_SetMotion(float move_angle_rad, float speed, float rotation);
 static void Chassis_CalcWheelControl(int idx, float vx, float vy, float wz);
 static float Chassis_NormalizeAngle(float angle);
@@ -459,7 +461,7 @@ static void Chassis_ProcessRotation(float lx)
 /**
  * @brief 右摇杆 — 平移控制
  */
-static void Chassis_ProcessTranslation(float rx, float ry)
+static void Chassis_ProcessTranslation(float rx, float ry, float lx)
 {
     float distance = sqrtf(rx * rx + ry * ry);
     if (distance < RC_DEADBAND) return;
@@ -476,7 +478,10 @@ static void Chassis_ProcessTranslation(float rx, float ry)
         last_move_angle = angle;
 
     float speed = (distance / 100.0f) * RC_BASE_LINEAR_SPEED;
-    Chassis_SetMotion(angle, speed, 0.0f);
+
+    float wz = -RC_TO_VW_SCALE * lx;
+
+    Chassis_SetMotion(angle, speed, wz);
 }
 
 /**
@@ -706,7 +711,7 @@ void Chassis_Task(void *argument) {
             ry = filter_vy;
 
             //TODO:将角度改为底盘的yaw角
-            float theta = 0.0f;
+            float theta = Euler[0][0];  // 使用BMI088获取的yaw角
             float car_vx = cos(theta)*rx + sin(theta)*ry;
             float car_vy = -sin(theta)*rx + cos(theta)*ry;
             rx = car_vx;
@@ -757,7 +762,7 @@ void Chassis_Task(void *argument) {
             else
             {
                 Chassis_ProcessRotation(lx);
-                Chassis_ProcessTranslation(rx, ry);
+                Chassis_ProcessTranslation(rx, ry, lx);
             }
         }
 

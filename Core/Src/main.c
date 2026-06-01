@@ -36,6 +36,7 @@
 /* USER CODE BEGIN Includes */
 #include "Task_KFS_Arm.h"
 #include "Task_UART.h"
+#include "tsk_config_and_callback.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -104,7 +105,7 @@ int main(void)
   PeriphCommonClock_Config();
 
   /* USER CODE BEGIN SysInit */
-  HAL_Delay(2000);
+  // HAL_Delay(2000);
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
@@ -123,7 +124,7 @@ int main(void)
   MX_USART10_UART_Init();
   MX_SPI2_Init();
   MX_SPI6_Init();
-  MX_IWDG1_Init();
+  // MX_IWDG1_Init();
   MX_TIM1_Init();
   MX_TIM2_Init();
   MX_TIM3_Init();
@@ -136,6 +137,7 @@ int main(void)
   MX_OCTOSPI2_Init();
   MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
+  Task_Init();
   /* 初始化已移至 MX_FREERTOS_Init() 中，避免重复调用 */
   /* USER CODE END 2 */
 
