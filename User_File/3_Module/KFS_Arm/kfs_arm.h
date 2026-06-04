@@ -10,58 +10,37 @@
 /*========== Core Class =============*/
 class KFS_Arm {
 public:
-#ifdef DEBUG_MODE
-    enum Joint1_Pos{
-        JOINT1_0 = 0U,
-        JOINT1_90 = 90U,
-        JOINT1_180 = 180U
-    };
-
-    enum Joint2_Pos{
-        JOINT2_0mm = 0U,
-        JOINT2_200mm = 200U,
-        JOINT2_400mm = 400U,
-        JOINT2_600mm = 600U
-    };
-#endif
-    enum HandCmd{
-        REACH_OUT,
-        PULL_BACK
-    };
-    KFS_Arm(PlannedJoint& joint1, PlannedJoint& joint2, Cylinder& hand, ArmSequencePlayer<2>& player)
-    : joint1(joint1)
-    , joint2(joint2)
-    , hand_(hand)
+    KFS_Arm(PlannedJoint& joint_h, PlannedJoint& joint_v, Cylinder& claw, ArmSequencePlayer<2>& player)
+    : joint_h(joint_h)
+    , joint_v(joint_v)
+    , claw_(claw)
     , player(player)
-    , state_(ORIGIN)
+    , state_(INIT_POS)
     {
         player.setContext(this);
     };
-    void rotateTo(float target);
-    void moveVerticallyTo(float target);
-    void reachHandOut();
-    void pullHandBack();
+    void reachOutTo(float target);
+    void moveVerticallyTo(float target, float duration = 2.0f);
+    void releaseClaw();
+    void tightenClaw();
+
+    void stopJointV();
 #ifdef DEBUG_MODE
     bool checkJoint1PosLimits(Joint1_Pos target);
     bool checkJoint2PosLimits(Joint2_Pos target);
 #endif
-    bool checkJoint1IsMoving() const {
-        return this->joint1.IsMoving();
+    bool checkJointHIsMoving() const {
+        return this->joint_h.IsMoving();
     }
-    bool checkJoint2IsMoving() const {
-        return this->joint2.IsMoving();
+    bool checkJointVIsMoving() const {
+        return this->joint_v.IsMoving();
     }
-#ifdef DEBUG_MODE
-    float Joint1PosToRad(Joint1_Pos pos);
-    float Joint2PosToM(Joint2_Pos pos);
-    Joint1_Pos RadToJoint1Pos(float rad);
-    Joint2_Pos MToJoint2Pos(float m);
-#endif
     volatile enum States{
-        ORIGIN,
         INIT_POS,
         ALLOW_MOTION,
-        DRAWING,
+        DRAWING_0,
+        DRAWING_1,
+        DRAWING_2,
         WITH_KFS,
         PUT_KFS,
     } state_;
@@ -89,13 +68,17 @@ public:
     void updateSequence() {
         player.Update();
     }
+    float getJointVCurPos(){
+        return this->joint_v.getCurrentTarget();
+    }
+    inline float getJointVCurTorque(){
+        return this->joint_v.getCurrentTorque();
+    }
 private:
-    PlannedJoint& joint1;
-    PlannedJoint& joint2;
+    PlannedJoint& joint_h;
+    PlannedJoint& joint_v;
     ArmSequencePlayer<2>& player;
-    Cylinder& hand_;
-
-
+    Cylinder& claw_;
 };
 
 

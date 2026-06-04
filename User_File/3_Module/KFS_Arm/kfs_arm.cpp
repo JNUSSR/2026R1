@@ -19,25 +19,30 @@
 
 
 /*=========== KFS_Arm ===========*/
-void KFS_Arm::rotateTo(float target){
+void KFS_Arm::reachOutTo(float target){
     if (player.IsPlaying()) return; // 序列播放中时忽略直接指令
 
-    this->joint1.Move(target, 2.0f); // 2秒内移动到目标位置
+    this->joint_h.Move(target, 2.0f); // 2秒内移动到目标位置
 }
 
-void KFS_Arm::moveVerticallyTo(float target){
+void KFS_Arm::moveVerticallyTo(float target, float duration){
     if (player.IsPlaying()) return; // 序列播放中时忽略直接指令
 
-    this->joint2.Move(target, 2.0f); // 2秒内移动到目标位置
+    this->joint_v.Move(target, duration);
 }
 
-void KFS_Arm::reachHandOut(){
-    this->hand_.charge();
+void KFS_Arm::releaseClaw(){
+    this->claw_.release();
 }
 
-void KFS_Arm::pullHandBack(){
-    this->hand_.release();
+void KFS_Arm::tightenClaw(){
+    this->claw_.charge();
 }
+
+void KFS_Arm::stopJointV(){
+    this->joint_v.stop();
+}
+
 #ifdef DEBUG_MODE
 bool KFS_Arm::checkJoint1PosLimits(Joint1_Pos target){
     Joint1_Pos joint1_pos = this->RadToJoint1Pos(this->joint1.getCurrentTarget());

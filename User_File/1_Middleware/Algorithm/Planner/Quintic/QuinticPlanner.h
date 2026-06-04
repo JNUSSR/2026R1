@@ -23,6 +23,8 @@ public:
 
     void ForceSetPosition(float pos);
 
+    void StopPlanning();
+
 private:
     float q0, qf;
     float t, T;

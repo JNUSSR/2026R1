@@ -47,3 +47,8 @@ void QuinticPlanner::ForceSetPosition(float pos) {
     current_target = pos;
     state = UNPLANNING; // 明确设定为空闲状态
 }
+
+void QuinticPlanner::StopPlanning() {
+    state = UNPLANNING;
+    t = 0.0f;
+}

@@ -13,6 +13,7 @@ class BaseMotor {
 public:
     virtual ~BaseMotor() = default;
     virtual void Set_Target_Angle(float angle) = 0; // 设置目标角度(弧度)
+    virtual float Get_Current_Torque() = 0; // 获取当前扭矩
 };
 
 class MotorAdapter_C610 : public BaseMotor {
@@ -20,6 +21,9 @@ public:
     explicit MotorAdapter_C610(Class_Motor_DJI_C610& real_motor) : real_motor_(real_motor) {}
     void Set_Target_Angle(float angle) override {
         real_motor_.Set_Target_Angle(angle);
+    }
+    float Get_Current_Torque() override {
+        return real_motor_.Get_Now_Torque();
     }
 private:
     Class_Motor_DJI_C610& real_motor_;
@@ -63,6 +67,12 @@ public:
     void setZeroPos(float zero_pos);
     float getCurrentTarget() const {
         return this->planner_.GetCurrentTarget();
+    }
+    inline float getCurrentTorque(){
+        return this->motor_.Get_Current_Torque();
+    }
+    inline void stop(){
+        this->planner_.StopPlanning();
     }
 
     // Methods merged from former RobotJoint
