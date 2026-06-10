@@ -184,7 +184,7 @@ void Task_Init()
     HandleClamping_Task_Init();
 
     //Chassis_Task_Init();
-    Task_VOFA_TX_Init();
+    Task_UART_Init();
 
     // 标记初始化完成
     init_finished = true;

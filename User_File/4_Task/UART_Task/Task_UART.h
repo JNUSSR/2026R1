@@ -7,9 +7,7 @@ extern "C" {
 #include "main.h"
 #include "cmsis_os2.h"
 
-void Task_VOFA_TX_Init(void);
-
-void Task_VOFA_TX_Impl(void);
+void Task_UART_Init(void);
 
 void Uart_Task();
 

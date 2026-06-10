@@ -10,6 +10,7 @@ void PlannedJoint::Move(float target, float duration) {
     if (!this->planner_.IsPlanning() && this->IsWithinLimits(target)) {
         this->planner_.Plan(this->planner_.GetCurrentTarget(), target, duration);
     }
+
 }
 
 bool PlannedJoint::IsMoving() const {

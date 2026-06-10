@@ -49,7 +49,7 @@ void UartCallback(uint8_t *Buffer, uint16_t Length) {
 
 // void UART7_Callback(uint8_t *Buffer, uint16_t Length);
 
-extern "C" void Task_VOFA_TX_Init(void) {
+extern "C" void Task_UART_Init(void) {
     g_ctrl_btn_queue = osMessageQueueNew(1, sizeof(uint8_t), NULL);
     g_ctrl_handleclamping_queue = osMessageQueueNew(1, sizeof(uint8_t), NULL);
     g_kfs_queue = osMessageQueueNew(1, sizeof(uint8_t[3][4]), NULL);
@@ -69,7 +69,7 @@ void Uart_Task() {
                     if (mav_msg.msgid == MAVLINK_MSG_ID_ACT) {
                         uint8_t act_val = mavlink_msg_act_get_act(&mav_msg);
                         // CtrlButtons ��Ч��Χ��Btn1(3) ~ Btn4(6)
-                        if (act_val >= Btn_ArmSwitch && act_val <= Btn_Hand) {
+                        if (act_val >= Btn_Hand1Release && act_val <= Btn_Hand2Tighten) {
                             osMessageQueuePut(g_ctrl_btn_queue, &act_val, 0U, 0U);
                         } else {
                             osMessageQueuePut(g_ctrl_handleclamping_queue, &act_val, 0U, 0U);

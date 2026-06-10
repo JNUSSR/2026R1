@@ -1,5 +1,7 @@
 #pragma once
 
+#include "planned_joint.h"
+
 #define ARRAY_LEN(arr) (sizeof(arr) / sizeof(arr[0]))
 // 单个关节的动作指令
 struct JointCmd {

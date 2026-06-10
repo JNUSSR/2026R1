@@ -18,10 +18,4 @@ void KFS_Arms_Motors_CAN_RxCpltCallback(uint32_t id);
 
 #ifdef __cplusplus
 }
-#if DEBUG_MODE == 0
-void Task_KFS_Arm_StateHandler(KFS_Arm& arm, CtrlButtons btn);
-void Task_KFS_Arm_MotionCmdHandler(KFS_Arm& arm, CtrlButtons btn);
-void Task_KFS_Arm_PlayingStateHandler(KFS_Arm& arm);
-#endif
-
 #endif
