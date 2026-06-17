@@ -9,8 +9,8 @@
 
 /* ======== Configs ========= */
 const float dt  = 0.001f; // 1ms 更新周期
-constexpr float ratio_jointh = (120.0 / 30.0);
-constexpr float ratio_jointv = (2.0 / 0.039);
+
+constexpr float ratio_joint = (2.0 / 0.039);
 
 const Enum_Motor_DJI_ID arm1_jointh_motor_id = Motor_DJI_ID_0x206;
 const Enum_Motor_DJI_ID arm1_jointv_motor_id = Motor_DJI_ID_0x202;
@@ -23,7 +23,7 @@ constexpr float jointh_out = 0.2f;
 constexpr float jointh_zero_pos = 0;
 constexpr float jointv_zero_pos = 0;
 constexpr float jointh_init_pos = 0.0f;
-constexpr float jointv_init_pos = 0.42f;
+constexpr float jointv_init_pos = 0.0f;
 
 /* ======== 编码器映射参数 ======== */
 constexpr float ENCODER_MIN  = -200.0f;
@@ -53,16 +53,17 @@ MotorAdapter_C610 arm2_jointh_servo(arm2_jointh_motor);
 MotorAdapter_C610 arm2_jointv_servo(arm2_jointv_motor);
 
 // joint_h: 保持 PlannedJoint (QuinticPlanner 阶跃指令)
+// arm1：顶吸 arm2；侧吸
 PlannedJoint arm1_jointh(
     arm1_jointh_servo,
-    { .min_limit = 0, .max_limit = M_PI, .zero_pos = jointh_zero_pos,
-      .direction = -1, .ratio = ratio_jointh },
+    { .min_limit = 0, .max_limit = 0.66, .zero_pos = jointh_zero_pos,
+      .direction = -1, .ratio = ratio_joint },
     dt
 );
 PlannedJoint arm2_jointh(
     arm2_jointh_servo,
-    { .min_limit = 0, .max_limit = M_PI, .zero_pos = jointh_zero_pos,
-      .direction = 1, .ratio = ratio_jointh },
+    { .min_limit = 0, .max_limit = 0.56, .zero_pos = jointh_zero_pos,
+      .direction = 1, .ratio = ratio_joint },
     dt
 );
 
@@ -70,13 +71,13 @@ PlannedJoint arm2_jointh(
 SlopeJoint arm1_jointv(
     arm1_jointv_servo,
     { .min_limit = 0.0f, .max_limit = 0.6f, .zero_pos = jointv_zero_pos,
-      .direction = 1, .ratio = ratio_jointv, .max_speed = 0.15f },
+      .direction = 1, .ratio = ratio_joint, .max_speed = 0.15f },
     dt
 );
 SlopeJoint arm2_jointv(
     arm2_jointv_servo,
     { .min_limit = 0.0f, .max_limit = 0.6f, .zero_pos = jointv_zero_pos,
-      .direction = 1, .ratio = ratio_jointv, .max_speed = 0.15f },
+      .direction = 1, .ratio = ratio_joint, .max_speed = 0.15f },
     dt
 );
 
@@ -86,10 +87,6 @@ Cylinder arm2_hand(GPIOA, GPIO_PIN_0);
 KFS_Arm arm1_kfs_arm(arm1_jointh, arm1_jointv, arm1_hand);
 KFS_Arm arm2_kfs_arm(arm2_jointh, arm2_jointv, arm2_hand);
 
-// 编码器旋钮值（由外部任务写入，范围 [-200, +200]）
-volatile float g_arm1_encoder_val = 0.0f;
-volatile float g_arm2_encoder_val = 0.0f;
-
 void Task_KFS_Arm_Init(void){
     // Init arm1 motor pair
     arm1_jointh_motor.PID_Omega.Init(
@@ -98,6 +95,7 @@ void Task_KFS_Arm_Init(void){
         , 0.0f
         , 0.0f
         , 1.0f
+        , 2.0f
     );
     arm1_jointh_motor.PID_Angle.Init(
         10.0f
@@ -195,31 +193,47 @@ void Task_KFS_Arm_Init(void){
 
 extern "C" void Task_KFS_Arm_Impl(){
     // ===== 消费按钮队列 =====
-    uint8_t btn_raw;
-    while (osMessageQueueGet(g_ctrl_btn_queue, &btn_raw, NULL, 0U) == osOK)
+    SuckerCmd_t btn;
+    while (osMessageQueueGet(g_sucker_ctrl_queue, &btn, NULL, 0U) == osOK)
     {
-        auto btn = static_cast<CtrlButtons>(btn_raw);
-        switch (btn) {
-            case Btn_Hand1Tighten:
-                arm1_kfs_arm.tightenClaw();
-                break;
-            case Btn_Hand2Tighten:
-                arm2_kfs_arm.tightenClaw();
-                break;
-            case Btn_Hand1Release:
-                arm1_kfs_arm.releaseClaw();
-                break;
-            case Btn_Hand2Release:
-                arm2_kfs_arm.releaseClaw();
-                break;
-            default:
-                break;
+        if (btn.sucker_a == 1) {
+            static bool arm1_claw_on = false;
+            static bool arm1_joint_out = false;
+            if (btn.action & Act4) {  // 气缸 toggle
+                arm1_claw_on = !arm1_claw_on;
+                if (arm1_claw_on) arm1_kfs_arm.tightenClaw();
+                else              arm1_kfs_arm.releaseClaw();
+            }
+            if (btn.action & Act6) {  // 水平伸出/收回 toggle
+                arm1_joint_out = !arm1_joint_out;
+                if (arm1_joint_out) arm1_kfs_arm.reachOutTo(jointh_out);
+                else                arm1_kfs_arm.reachOutTo(jointh_in);
+            }
+        }
+        if (btn.sucker_b == 1) {
+            static bool arm2_claw_on = false;
+            static bool arm2_joint_out = false;
+            if (btn.action & Act4) {  // 气缸 toggle
+                arm2_claw_on = !arm2_claw_on;
+                if (arm2_claw_on) arm2_kfs_arm.tightenClaw();
+                else              arm2_kfs_arm.releaseClaw();
+            }
+            if (btn.action & Act6) {  // 水平伸出/收回 toggle
+                arm2_joint_out = !arm2_joint_out;
+                if (arm2_joint_out) arm2_kfs_arm.reachOutTo(jointh_out);
+                else                arm2_kfs_arm.reachOutTo(jointh_in);
+            }
         }
     }
 
-    // ===== 编码器映射 joint_v =====
-    arm1_kfs_arm.moveVerticallyTo(encoderToJointVPos(g_arm1_encoder_val));
-    arm2_kfs_arm.moveVerticallyTo(encoderToJointVPos(g_arm2_encoder_val));
+    float arm1_encoder_val, arm2_encoder_val;
+    // ===== 消费编码器队列（按时间顺序处理）=====
+    if (osMessageQueueGet(g_encoder0_queue, &arm1_encoder_val, NULL, 0U) == osOK) {
+        arm1_kfs_arm.moveVerticallyTo(encoderToJointVPos(arm1_encoder_val));
+    }
+    if (osMessageQueueGet(g_encoder3_queue, &arm2_encoder_val, NULL, 0U) == osOK) {
+        arm2_kfs_arm.moveVerticallyTo(encoderToJointVPos(arm2_encoder_val));
+    }
 
     // ===== 电机更新 =====
     arm1_jointh.Update();

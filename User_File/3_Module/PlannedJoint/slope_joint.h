@@ -10,7 +10,9 @@
 #define M_PI 3.14159265358979323846f
 #endif
 
-/* ====== 带规划的关节 ====== */
+/* ====== 带规划的关节 ====== 
+   允许目标值在任意时刻被更新，关节会平滑地移动到新的目标值
+*/
 class SlopeJoint {
 public:
     struct JointConfig{
