@@ -1,12 +1,12 @@
 /** @file
- *  @brief MAVLink comm protocol built from remote_control_v2.xml
+ *  @brief MAVLink comm protocol built from remote_control.xml
  *  @see http://mavlink.org
  */
 #pragma once
 #ifndef MAVLINK_H
 #define MAVLINK_H
 
-#define MAVLINK_PRIMARY_XML_HASH 7674162156997674291
+#define MAVLINK_PRIMARY_XML_HASH 9170783198409209361
 
 #ifndef MAVLINK_STX
 #define MAVLINK_STX 253
@@ -29,6 +29,6 @@
 #endif
 
 #include "version.h"
-#include "remote_control_v2.h"
+#include "remote_control.h"
 
 #endif // MAVLINK_H

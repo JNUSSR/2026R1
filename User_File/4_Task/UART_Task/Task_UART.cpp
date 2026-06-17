@@ -13,34 +13,22 @@
 #include "uart_command.h"
 #include "usart.h"
 
-constexpr uint8_t kJustFloatChannelCount = 11;
-constexpr uint8_t kRxLineBufferSize = 96;
-constexpr uint8_t kTxFrameTail[4] = {0x00, 0x00, 0x80, 0x7f};
 uint16_t rx_len = 0;
-Class_Motor_DJI_C610 *now_motor1 = &arm2_joint1_motor;
-Class_Motor_DJI_C610 *now_motor2 = &arm2_joint2_motor;
-Class_Motor_DJI_C610 *now_motor = &arm1_joint1_motor; // �������õĵ�ǰѡ�����ָ��
 
 // UART ?1?7?KFS_Arm ��������У��ж���������KFS_Arm ��������?1?7?
 osMessageQueueId_t g_arm_cmd_queue = nullptr;
-
-osMessageQueueId_t g_ctrl_btn_queue = nullptr;
+osMessageQueueId_t g_encoder0_queue = nullptr;
+osMessageQueueId_t g_encoder3_queue = nullptr;
+osMessageQueueId_t g_sucker_ctrl_queue = nullptr;
 // ���ƶ��м�ȡ�����˻�������
 osMessageQueueId_t g_ctrl_handleclamping_queue = nullptr;
 osMessageQueueId_t g_kfs_queue = nullptr;
+osMessageQueueId_t g_kfs_put_queue = nullptr;
 osMessageQueueId_t g_adc_queue = nullptr;
 
 osSemaphoreId_t uartSemaphoreHandle;
 // �ϵ��ʼ��������־���յ� "init1" ����λ
 volatile bool g_arm_init1_received = false;
-volatile __attribute__((section(".ram_d2"))) uint8_t UART_Rx_Buffer[kRxLineBufferSize] = {0};
-
-void Send_JustFloatFrame(const float *channels, uint8_t channel_count) {
-    uint8_t tx_buffer[sizeof(float) * kJustFloatChannelCount + sizeof(kTxFrameTail)] = {0};
-    std::memcpy(tx_buffer, channels, sizeof(float) * channel_count);
-    std::memcpy(tx_buffer + sizeof(float) * channel_count, kTxFrameTail, sizeof(kTxFrameTail));
-    UART_Transmit_Data(&huart7, tx_buffer, static_cast<uint16_t>(sizeof(float) * channel_count + sizeof(kTxFrameTail)));
-}
 
 void UartCallback(uint8_t *Buffer, uint16_t Length) {
     rx_len = Length;
@@ -50,12 +38,29 @@ void UartCallback(uint8_t *Buffer, uint16_t Length) {
 // void UART7_Callback(uint8_t *Buffer, uint16_t Length);
 
 extern "C" void Task_UART_Init(void) {
-    g_ctrl_btn_queue = osMessageQueueNew(1, sizeof(uint8_t), NULL);
+    g_sucker_ctrl_queue = osMessageQueueNew(1, sizeof(uint8_t), NULL);
     g_ctrl_handleclamping_queue = osMessageQueueNew(1, sizeof(uint8_t), NULL);
     g_kfs_queue = osMessageQueueNew(1, sizeof(uint8_t[3][4]), NULL);
+    g_kfs_put_queue = osMessageQueueNew(1, sizeof(uint8_t[2][3]), NULL);
+    g_encoder0_queue = osMessageQueueNew(3, sizeof(int16_t), NULL);
+    g_encoder3_queue = osMessageQueueNew(3, sizeof(int16_t), NULL);
     // g_adc_queue = osMessageQueueNew(1,sizeof(mavlink_adc_t), NULL);
     UART_Init(&huart7, UartCallback);
 }
+
+union ActionCmd_t {
+    uint8_t raw;
+    struct {
+        uint8_t object : 3;
+        uint8_t action : 3;
+        uint8_t reserved : 2;
+    };
+};
+enum Msk_ActionObject {
+    ActObject_SuckerA = 0x01,
+    ActObject_Claw = 0x02,
+    ActObject_SuckerB = 0x04
+};
 
 void Uart_Task() {
     for (;;) {
@@ -66,32 +71,66 @@ void Uart_Task() {
 
             for (uint16_t i = 0; i < rx_len; i++) {
                 if (mavlink_parse_char(MAVLINK_COMM_0, UART7_Manage_Object.Rx_Buffer_Ready[i], &mav_msg,&mav_status)) {
-                    if (mav_msg.msgid == MAVLINK_MSG_ID_ACT) {
-                        uint8_t act_val = mavlink_msg_act_get_act(&mav_msg);
-                        // CtrlButtons ��Ч��Χ��Btn1(3) ~ Btn4(6)
-                        if (act_val >= Btn_Hand1Release && act_val <= Btn_Hand2Tighten) {
-                            osMessageQueuePut(g_ctrl_btn_queue, &act_val, 0U, 0U);
-                        } else {
-                            osMessageQueuePut(g_ctrl_handleclamping_queue, &act_val, 0U, 0U);
-                        }
-                    }
-                    else if (mav_msg.msgid == MAVLINK_MSG_ID_KFS) {
-                        uint32_t kfs_val = mavlink_msg_kfs_get_kfs(&mav_msg);
-                        // CtrlButtons ��Ч��Χ��Btn1(3) ~ Btn4(6)
-                        uint8_t kfs_matrix[3][4] = {{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}};
+                    if (mav_msg.msgid == MAVLINK_MSG_ID_REMOTE_CONTROL_STATE) {
+                            //旋钮
+                            int16_t encoder_0 = mavlink_msg_remote_control_state_get_encoder_0(&mav_msg);
+                            int16_t encoder_3 = mavlink_msg_remote_control_state_get_encoder_3(&mav_msg);
 
-                        for (int i = 0; i < 3; i++) {
-                            for (int j = 0; j < 4; j++) {
-                                kfs_matrix[i][j] = (uint8_t) (kfs_val >> ((i * 4 + j) * 2)) & 0x03;
+                            osMessageQueuePut(g_encoder0_queue, &encoder_0, 0U, 0U);
+                            osMessageQueuePut(g_encoder3_queue, &encoder_3, 0U, 0U);
+                            //动作
+                            ActionCmd_t action_cmd;
+                            action_cmd.raw = mavlink_msg_remote_control_state_get_act(&mav_msg);
+                            uint8_t object = action_cmd.object;
+                            uint8_t action = action_cmd.action;
+                            if (object & ActObject_SuckerA || object & ActObject_SuckerB) {
+                                    SuckerCmd_t sucker_cmd;
+                                    sucker_cmd.sucker_a = object == ActObject_SuckerA ? 1 : 0;
+                                    sucker_cmd.sucker_b = object == ActObject_SuckerB ? 1 : 0;
+                                    sucker_cmd.action = action;
+                                    osMessageQueuePut(g_sucker_ctrl_queue, &sucker_cmd, 0U, 0U);
                             }
-                        }
-                        osMessageQueuePut(g_kfs_queue, &kfs_matrix, 0U, 0U);
-                    }
-                    else if (mav_msg.msgid == MAVLINK_MSG_ID_adc) {
-                        mavlink_adc_t adc_val;
-                        mavlink_msg_adc_decode(&mav_msg, &adc_val);
-                        ADC_to_Channel(adc_val.adc1, adc_val.adc2, adc_val.adc3);
-                        // osMessageQueuePut(g_adc_queue, &adc_val, 0U, 0U);
+                            if (object & ActObject_Claw) {
+                                    // action bit0=act4 → 旋转, bit2=act6 → 夹紧//TODO
+                                    uint8_t handle_cmd = 0;
+                                    if (action & Act4) {
+                                        handle_cmd = HandleRotate; // Btn_HandleRotate
+                                    }
+                                    else if (action & Act6) {
+                                        handle_cmd = Clamping; // Btn_Clamping
+                                    }
+                                    osMessageQueuePut(g_ctrl_handleclamping_queue, &handle_cmd, 0U, 0U);
+                            }
+                            // 梅林矩阵解包：4行3列，每元素2位
+                            uint32_t kfs_val = mavlink_msg_remote_control_state_get_kfs(&mav_msg);
+                            uint8_t kfs_matrix[3][4] = {{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}};
+
+                            for (int i = 0; i < 3; i++) {
+                                for (int j = 0; j < 4; j++) {
+                                    kfs_matrix[i][j] = (uint8_t) (kfs_val >> ((i * 4 + j) * 2)) & 0x03;
+                                }
+                            }
+                            osMessageQueuePut(g_kfs_queue, &kfs_matrix, 0U, 0U);
+                            // 九宫格解包：2行3列，每元素1位
+                            uint8_t kfs_put_val = mavlink_msg_remote_control_state_get_kfs_put(&mav_msg);
+                            uint8_t kfs_put_matrix[2][3] = {{0, 0, 0}, {0, 0, 0}};
+                            for (int i = 0; i < 2; i++) {
+                                for (int j = 0; j < 3; j++) {
+                                    kfs_put_matrix[i][j] = (uint8_t) (kfs_put_val >> ((i * 3 + j) * 1)) & 0x01;
+                                }
+                            }
+                            osMessageQueuePut(g_kfs_put_queue, &kfs_put_matrix, 0U, 0U);
+                            //摇杆 //TODO
+                            int16_t move_0, move_1, move_2, move_3;
+                            move_0 = mavlink_msg_remote_control_state_get_move_0(&mav_msg);
+                            move_1 = mavlink_msg_remote_control_state_get_move_1(&mav_msg);
+                            move_2 = mavlink_msg_remote_control_state_get_move_2(&mav_msg);
+                            move_3 = mavlink_msg_remote_control_state_get_move_3(&mav_msg);
+
+                            //ADC_to_Channel(adc_val.adc1, adc_val.adc2, adc_val.adc3);
+                            // osMessageQueuePut(g_adc_queue, &adc_val, 0U, 0U);
+
+                            //动作模式 //TODO
                     }
                 }
             }
