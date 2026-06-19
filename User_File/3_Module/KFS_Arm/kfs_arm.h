@@ -9,7 +9,7 @@
 /*========== Core Class =============*/
 class KFS_Arm {
 public:
-    KFS_Arm(PlannedJoint& joint_h, SlopeJoint& joint_v, Cylinder& claw)
+    KFS_Arm(SlopeJoint& joint_h, SlopeJoint& joint_v, Cylinder& claw)
     : joint_h(joint_h)
     , joint_v(joint_v)
     , claw_(claw)
@@ -25,9 +25,9 @@ public:
     float getJointVCurTorque() { return joint_v.getCurrentTorque(); }
 
 private:
-    PlannedJoint& joint_h;
-    SlopeJoint&    joint_v;
-    Cylinder&      claw_;
+    SlopeJoint&     joint_h;
+    SlopeJoint&     joint_v;
+    Cylinder&       claw_;
 };
 
 

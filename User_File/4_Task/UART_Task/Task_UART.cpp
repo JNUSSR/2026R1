@@ -18,6 +18,8 @@ uint16_t rx_len = 0;
 // UART ?1?7?KFS_Arm ��������У��ж���������KFS_Arm ��������?1?7?
 osMessageQueueId_t g_arm_cmd_queue = nullptr;
 osMessageQueueId_t g_encoder0_queue = nullptr;
+osMessageQueueId_t g_encoder1_queue = nullptr;
+osMessageQueueId_t g_encoder2_queue = nullptr;
 osMessageQueueId_t g_encoder3_queue = nullptr;
 osMessageQueueId_t g_sucker_ctrl_queue = nullptr;
 // ���ƶ��м�ȡ�����˻�������
@@ -43,6 +45,8 @@ extern "C" void Task_UART_Init(void) {
     g_kfs_queue = osMessageQueueNew(1, sizeof(uint8_t[3][4]), NULL);
     g_kfs_put_queue = osMessageQueueNew(1, sizeof(uint8_t[2][3]), NULL);
     g_encoder0_queue = osMessageQueueNew(3, sizeof(int16_t), NULL);
+    g_encoder1_queue = osMessageQueueNew(3, sizeof(int16_t), NULL);
+    g_encoder2_queue = osMessageQueueNew(3, sizeof(int16_t), NULL);
     g_encoder3_queue = osMessageQueueNew(3, sizeof(int16_t), NULL);
     // g_adc_queue = osMessageQueueNew(1,sizeof(mavlink_adc_t), NULL);
     UART_Init(&huart7, UartCallback);
@@ -51,16 +55,16 @@ extern "C" void Task_UART_Init(void) {
 union ActionCmd_t {
     uint8_t raw;
     struct {
-        uint8_t object : 3;
-        uint8_t action : 3;
+        bool sucker_a : 1;
+        bool claw : 1;
+        bool sucker_b : 1;
+        bool act4 : 1;
+        bool act5 : 1;
+        bool act6 : 1;
         uint8_t reserved : 2;
     };
 };
-enum Msk_ActionObject {
-    ActObject_SuckerA = 0x01,
-    ActObject_Claw = 0x02,
-    ActObject_SuckerB = 0x04
-};
+
 
 void Uart_Task() {
     for (;;) {
@@ -74,33 +78,27 @@ void Uart_Task() {
                     if (mav_msg.msgid == MAVLINK_MSG_ID_REMOTE_CONTROL_STATE) {
                             //旋钮
                             int16_t encoder_0 = mavlink_msg_remote_control_state_get_encoder_0(&mav_msg);
+                            int16_t encoder_1 = mavlink_msg_remote_control_state_get_encoder_1(&mav_msg);
+                            int16_t encoder_2 = mavlink_msg_remote_control_state_get_encoder_2(&mav_msg);
                             int16_t encoder_3 = mavlink_msg_remote_control_state_get_encoder_3(&mav_msg);
 
                             osMessageQueuePut(g_encoder0_queue, &encoder_0, 0U, 0U);
+                            osMessageQueuePut(g_encoder1_queue, &encoder_1, 0U, 0U);
+                            osMessageQueuePut(g_encoder2_queue, &encoder_2, 0U, 0U);
                             osMessageQueuePut(g_encoder3_queue, &encoder_3, 0U, 0U);
                             //动作
                             ActionCmd_t action_cmd;
                             action_cmd.raw = mavlink_msg_remote_control_state_get_act(&mav_msg);
-                            uint8_t object = action_cmd.object;
-                            uint8_t action = action_cmd.action;
-                            if (object & ActObject_SuckerA || object & ActObject_SuckerB) {
-                                    SuckerCmd_t sucker_cmd;
-                                    sucker_cmd.sucker_a = object == ActObject_SuckerA ? 1 : 0;
-                                    sucker_cmd.sucker_b = object == ActObject_SuckerB ? 1 : 0;
-                                    sucker_cmd.action = action;
-                                    osMessageQueuePut(g_sucker_ctrl_queue, &sucker_cmd, 0U, 0U);
-                            }
-                            if (object & ActObject_Claw) {
-                                    // action bit0=act4 → 旋转, bit2=act6 → 夹紧//TODO
-                                    uint8_t handle_cmd = 0;
-                                    if (action & Act4) {
-                                        handle_cmd = HandleRotate; // Btn_HandleRotate
-                                    }
-                                    else if (action & Act6) {
-                                        handle_cmd = Clamping; // Btn_Clamping
-                                    }
-                                    osMessageQueuePut(g_ctrl_handleclamping_queue, &handle_cmd, 0U, 0U);
-                            }
+
+                            SuckerCmd_t sucker_cmd;
+                            sucker_cmd.sucker_a = action_cmd.sucker_a;
+                            sucker_cmd.sucker_b = action_cmd.sucker_b;
+                            osMessageQueuePut(g_sucker_ctrl_queue, &sucker_cmd, 0U, 0U);
+
+                            //TODO 夹爪命令解析
+                            uint8_t handle_cmd = 0;
+                            osMessageQueuePut(g_ctrl_handleclamping_queue, &handle_cmd, 0U, 0U);
+                            
                             // 梅林矩阵解包：4行3列，每元素2位
                             uint32_t kfs_val = mavlink_msg_remote_control_state_get_kfs(&mav_msg);
                             uint8_t kfs_matrix[3][4] = {{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}};
@@ -119,7 +117,7 @@ void Uart_Task() {
                                     kfs_put_matrix[i][j] = (uint8_t) (kfs_put_val >> ((i * 3 + j) * 1)) & 0x01;
                                 }
                             }
-                            osMessageQueuePut(g_kfs_put_queue, &kfs_put_matrix, 0U, 0U);
+                            osMessageQueuePut(g_kfs_put_queue, &kfs_put_matrix, 0U, 0U);//TODO 消费端
                             //摇杆 //TODO
                             int16_t move_0, move_1, move_2, move_3;
                             move_0 = mavlink_msg_remote_control_state_get_move_0(&mav_msg);

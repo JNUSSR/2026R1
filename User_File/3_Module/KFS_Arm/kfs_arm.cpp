@@ -7,7 +7,7 @@
 
 /*=========== KFS_Arm ===========*/
 void KFS_Arm::reachOutTo(float target, float duration){
-    this->joint_h.Move(target, duration);
+    this->joint_h.Move(target);
 }
 
 void KFS_Arm::moveVerticallyTo(float target){

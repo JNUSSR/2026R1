@@ -30,14 +30,31 @@ constexpr float ENCODER_MIN  = -200.0f;
 constexpr float ENCODER_MAX  =  200.0f;
 constexpr float JOINTV_POS_MIN = 0.0f;
 constexpr float JOINTV_POS_MAX = 0.6f;
+constexpr float JOINTH1_POS_MIN = 0.0f;
+constexpr float JOINTH1_POS_MAX = 0.66f;
+constexpr float JOINTH2_POS_MIN = 0.0f;
+constexpr float JOINTH2_POS_MAX = 0.56f;
 
-// 编码器值 → joint_v 位置线性映射
-static inline float encoderToJointVPos(float enc) {
-    if (enc < ENCODER_MIN) enc = ENCODER_MIN;
-    if (enc > ENCODER_MAX) enc = ENCODER_MAX;
-    return (enc - ENCODER_MIN) / (ENCODER_MAX - ENCODER_MIN)
-           * (JOINTV_POS_MAX - JOINTV_POS_MIN) + JOINTV_POS_MIN;
+// 编码器值 → joint 位置线性映射
+static inline float encoderToJoint(float enc, float enc_min, float enc_max, float pos_min, float pos_max) {
+    if (enc < enc_min) enc = enc_min;
+    if (enc > enc_max) enc = enc_max;
+    return (enc - enc_min) / (enc_max - enc_min) * (pos_max - pos_min) + pos_min;
 }
+
+static inline float encoderToJointVPos(float enc) {
+    return encoderToJoint(enc, ENCODER_MIN, ENCODER_MAX, JOINTV_POS_MIN, JOINTV_POS_MAX);
+}
+
+static inline float encoderToJointH1Pos(float enc) {
+    return encoderToJoint(enc, ENCODER_MIN, ENCODER_MAX, JOINTH1_POS_MIN, JOINTH1_POS_MAX);
+}
+
+static inline float encoderToJointH2Pos(float enc) {
+    return encoderToJoint(enc, ENCODER_MIN, ENCODER_MAX, JOINTH2_POS_MIN, JOINTH2_POS_MAX);
+}
+
+
 
 
 
@@ -54,16 +71,16 @@ MotorAdapter_C610 arm2_jointv_servo(arm2_jointv_motor);
 
 // joint_h: 保持 PlannedJoint (QuinticPlanner 阶跃指令)
 // arm1：顶吸 arm2；侧吸
-PlannedJoint arm1_jointh(
+SlopeJoint arm1_jointh(
     arm1_jointh_servo,
     { .min_limit = 0, .max_limit = 0.66, .zero_pos = jointh_zero_pos,
-      .direction = -1, .ratio = ratio_joint },
+      .direction = 1, .ratio = ratio_joint, .max_speed = 0.15f },
     dt
 );
-PlannedJoint arm2_jointh(
+SlopeJoint arm2_jointh(
     arm2_jointh_servo,
     { .min_limit = 0, .max_limit = 0.56, .zero_pos = jointh_zero_pos,
-      .direction = 1, .ratio = ratio_joint },
+      .direction = 1, .ratio = ratio_joint, .max_speed = 0.15f },
     dt
 );
 
@@ -197,42 +214,32 @@ extern "C" void Task_KFS_Arm_Impl(){
     while (osMessageQueueGet(g_sucker_ctrl_queue, &btn, NULL, 0U) == osOK)
     {
         if (btn.sucker_a == 1) {
-            static bool arm1_claw_on = false;
-            static bool arm1_joint_out = false;
-            if (btn.action & Act4) {  // 气缸 toggle
-                arm1_claw_on = !arm1_claw_on;
-                if (arm1_claw_on) arm1_kfs_arm.tightenClaw();
-                else              arm1_kfs_arm.releaseClaw();
-            }
-            if (btn.action & Act6) {  // 水平伸出/收回 toggle
-                arm1_joint_out = !arm1_joint_out;
-                if (arm1_joint_out) arm1_kfs_arm.reachOutTo(jointh_out);
-                else                arm1_kfs_arm.reachOutTo(jointh_in);
-            }
+            arm1_kfs_arm.tightenClaw();
+        }
+        else{
+            arm1_kfs_arm.releaseClaw();
         }
         if (btn.sucker_b == 1) {
-            static bool arm2_claw_on = false;
-            static bool arm2_joint_out = false;
-            if (btn.action & Act4) {  // 气缸 toggle
-                arm2_claw_on = !arm2_claw_on;
-                if (arm2_claw_on) arm2_kfs_arm.tightenClaw();
-                else              arm2_kfs_arm.releaseClaw();
-            }
-            if (btn.action & Act6) {  // 水平伸出/收回 toggle
-                arm2_joint_out = !arm2_joint_out;
-                if (arm2_joint_out) arm2_kfs_arm.reachOutTo(jointh_out);
-                else                arm2_kfs_arm.reachOutTo(jointh_in);
-            }
+            arm2_kfs_arm.tightenClaw();
+        }
+        else{
+            arm2_kfs_arm.releaseClaw();
         }
     }
 
-    float arm1_encoder_val, arm2_encoder_val;
+    float arm1v_encoder_val, arm2v_encoder_val, arm1h_encoder_val, arm2h_encoder_val;
     // ===== 消费编码器队列（按时间顺序处理）=====
-    if (osMessageQueueGet(g_encoder0_queue, &arm1_encoder_val, NULL, 0U) == osOK) {
-        arm1_kfs_arm.moveVerticallyTo(encoderToJointVPos(arm1_encoder_val));
+    if (osMessageQueueGet(g_encoder0_queue, &arm1v_encoder_val, NULL, 0U) == osOK) {
+        arm1_kfs_arm.moveVerticallyTo(encoderToJointVPos(arm1v_encoder_val));
     }
-    if (osMessageQueueGet(g_encoder3_queue, &arm2_encoder_val, NULL, 0U) == osOK) {
-        arm2_kfs_arm.moveVerticallyTo(encoderToJointVPos(arm2_encoder_val));
+    if (osMessageQueueGet(g_encoder1_queue, &arm1h_encoder_val, NULL, 0U) == osOK) {
+        arm1_kfs_arm.reachOutTo(encoderToJointH1Pos(arm1h_encoder_val));
+    }
+    if (osMessageQueueGet(g_encoder2_queue, &arm2h_encoder_val, NULL, 0U) == osOK) {
+        arm2_kfs_arm.reachOutTo(encoderToJointH2Pos(arm2h_encoder_val));
+    }
+    if (osMessageQueueGet(g_encoder3_queue, &arm2v_encoder_val, NULL, 0U) == osOK) {
+        arm2_kfs_arm.moveVerticallyTo(encoderToJointVPos(arm2v_encoder_val));
     }
 
     // ===== 电机更新 =====
