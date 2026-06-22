@@ -19,7 +19,6 @@ uint8_t printf_flag = 0;
  ******************************************************************************/
 void HandleClamping_Task_Init()
 {
-    HandleClamping_ctrl.Set_State(STATE_CALIBRATING);
     HandleClamping_ctrl.Init();
 }
 

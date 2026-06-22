@@ -12,29 +12,28 @@ void Class_HandleClamping::Init()
     //初始化时，CANTx_ID直接填上位机的的CAN_ID,初始化中会根据选中的模式自动调整发送CAN_ID
     
     //初始化电机
-    Motor_Handle_2_.Init(&hfdcan2, HANDLE_MOTOR_MST_ID, HANDLE_MOTOR_TX_ID, Motor_DM_Control_Method_NORMAL_OMEGA,  200.0f, 200.0f, 10.0f, 20.522388f);
-    Motor_Handle_2_.Mode_Switch(Motor_DM_Control_Method_NORMAL_OMEGA);
+    Motor_Handle_2_.Init(&hfdcan2, HANDLE_MOTOR_MST_ID, HANDLE_MOTOR_TX_ID, Motor_DM_Control_Method_NORMAL_ANGLE_OMEGA,  200.0f, 200.0f, 10.0f, 20.522388f);
+    Motor_Handle_2_.Mode_Switch(Motor_DM_Control_Method_NORMAL_ANGLE_OMEGA);
     Motor_Handle_2_.CAN_Send_Save_Zero();
-    Start_Calibrate();
-    // Motor_Handle_2_.Init(&hfdcan1, HANDLE_MOTOR_MST_ID, HANDLE_MOTOR_TX_ID, Motor_DM_Control_Method_NORMAL_ANGLE_OMEGA,  60.288f, 200.0f, 10.0f, 20.522388f);
-    // Motor_Handle_2_.Mode_Switch(Motor_DM_Control_Method_NORMAL_ANGLE_OMEGA);
-    //获取并设置软零点位置
-    // Motor_Handle_2_.Set_Control_Omega(HANDLE_MOTOR_CONTROL_OMEGA);
+    Set_State(STATE_RUNNING);
+
+    //是否使用校准，如不使用则注释掉start_calibrate函数调用，直接设置几个位置参数；
+    //并将上面的的电机控制模式改为Motor_DM_Control_Method_NORMAL_ANGLE_OMEGA
+    //并且还要将
+    // Start_Calibrate();
+    // Set_State(STATE_CALIBRATING);
+
     //设置三个模式的位置
-    // float soft_zero = Motor_Handle_2_.Get_Now_Angle();
-    // Angle_Reset_ = soft_zero + HANDLE_MOTOR_INIT_INCREANGLE; //根据电机的实际转动方向选择是Pos_Max_,是加还是减
-    // Angle_Reach_ = Angle_Reset_ + HANDLE_POS_REACH_INCREANGLE;
-    // Angle_Abutting_ = Angle_Reset_ + HANDLE_POS_ABUTTING_INCREANGLE;
+    float soft_zero = Motor_Handle_2_.Get_Now_Angle(); //机构最低位置的角度，因为上面初始化时保存了零点，一般被初始化为零0
+    Angle_Reset_ = soft_zero + HANDLE_MOTOR_INIT_INCREANGLE; //Angle_Reset为水平机械臂水平时候的角度;根据电机的实际转动方向选择是Pos_Max_,是加还是减
+    Angle_Reach_ = Angle_Reset_ + HANDLE_POS_REACH_INCREANGLE; 
+    Angle_Abutting_ = Angle_Reset_ + HANDLE_POS_ABUTTING_INCREANGLE;
     
-    // // 刚初始化时先将目标位置设置为复位位置
-    // Motor_Handle_Set_Angle(Angle_Reset_);
+    //刚初始化时先将目标位置设置为对接位置
+    Motor_Handle_Set_Angle(Angle_Reset_);
 
     //气缸GPIO口初始化
     // Handle_Cylinder_Init();
-
-    
-
-    
 }
 
 /******************************************************************************
@@ -105,7 +104,7 @@ void Class_HandleClamping::Calibrate()
                 Angle_Reach_ = Angle_Reset_ + HANDLE_POS_REACH_INCREANGLE;
                 Angle_Abutting_ = Pos_Min_ + 45.0f;
                 Motor_Handle_Set_Angle(Pos_Min_ + 45.0f);
-                    //获取并设置软零点位置
+                //获取并设置软零点位置
                 break;
             }
 
