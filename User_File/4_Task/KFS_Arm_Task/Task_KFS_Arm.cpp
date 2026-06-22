@@ -8,26 +8,27 @@
 #include <cmath>
 
 /* ======== Configs ========= */
+// arm1：顶吸 arm2；侧吸
 const float dt  = 0.001f; // 1ms 更新周期
 
 constexpr float ratio_joint = (2.0 / 0.039);
 
-const Enum_Motor_DJI_ID arm1_jointh_motor_id = Motor_DJI_ID_0x206;
-const Enum_Motor_DJI_ID arm1_jointv_motor_id = Motor_DJI_ID_0x202;
+const Enum_Motor_DJI_ID arm1_jointh_motor_id = Motor_DJI_ID_0x204;
+const Enum_Motor_DJI_ID arm1_jointv_motor_id = Motor_DJI_ID_0x203;
 const Enum_Motor_DJI_ID arm2_jointh_motor_id = Motor_DJI_ID_0x201;
-const Enum_Motor_DJI_ID arm2_jointv_motor_id = Motor_DJI_ID_0x205;
+const Enum_Motor_DJI_ID arm2_jointv_motor_id = Motor_DJI_ID_0x202;
 
 constexpr float jointh_in  = 0;
 constexpr float jointh_out = 0.2f;
 
-constexpr float jointh_zero_pos = 0;
-constexpr float jointv_zero_pos = 0;
+constexpr float jointh_zero_pos = 0.0f;
+constexpr float jointv_zero_pos = 0.0f;
 constexpr float jointh_init_pos = 0.0f;
 constexpr float jointv_init_pos = 0.0f;
 
 /* ======== 编码器映射参数 ======== */
-constexpr float ENCODER_MIN  = -200.0f;
-constexpr float ENCODER_MAX  =  200.0f;
+constexpr float ENCODER_MIN  =  0.0f;
+constexpr float ENCODER_MAX  =  300.0f;
 constexpr float JOINTV_POS_MIN = 0.0f;
 constexpr float JOINTV_POS_MAX = 0.6f;
 constexpr float JOINTH1_POS_MIN = 0.0f;
@@ -39,6 +40,7 @@ constexpr float JOINTH2_POS_MAX = 0.56f;
 static inline float encoderToJoint(float enc, float enc_min, float enc_max, float pos_min, float pos_max) {
     if (enc < enc_min) enc = enc_min;
     if (enc > enc_max) enc = enc_max;
+    if (enc != enc) enc = enc_min; // NaN 检测，若为 NaN 则设为最小值
     return (enc - enc_min) / (enc_max - enc_min) * (pos_max - pos_min) + pos_min;
 }
 
@@ -70,17 +72,17 @@ MotorAdapter_C610 arm2_jointh_servo(arm2_jointh_motor);
 MotorAdapter_C610 arm2_jointv_servo(arm2_jointv_motor);
 
 // joint_h: 保持 PlannedJoint (QuinticPlanner 阶跃指令)
-// arm1：顶吸 arm2；侧吸
+
 SlopeJoint arm1_jointh(
     arm1_jointh_servo,
     { .min_limit = 0, .max_limit = 0.66, .zero_pos = jointh_zero_pos,
-      .direction = 1, .ratio = ratio_joint, .max_speed = 0.15f },
+      .direction = -1, .ratio = ratio_joint, .max_speed = 0.1f },
     dt
 );
 SlopeJoint arm2_jointh(
     arm2_jointh_servo,
     { .min_limit = 0, .max_limit = 0.56, .zero_pos = jointh_zero_pos,
-      .direction = 1, .ratio = ratio_joint, .max_speed = 0.15f },
+      .direction = 1, .ratio = ratio_joint, .max_speed = 0.1f },
     dt
 );
 
@@ -88,13 +90,13 @@ SlopeJoint arm2_jointh(
 SlopeJoint arm1_jointv(
     arm1_jointv_servo,
     { .min_limit = 0.0f, .max_limit = 0.6f, .zero_pos = jointv_zero_pos,
-      .direction = 1, .ratio = ratio_joint, .max_speed = 0.15f },
+      .direction = 1, .ratio = ratio_joint, .max_speed = 0.1f },
     dt
 );
 SlopeJoint arm2_jointv(
     arm2_jointv_servo,
     { .min_limit = 0.0f, .max_limit = 0.6f, .zero_pos = jointv_zero_pos,
-      .direction = 1, .ratio = ratio_joint, .max_speed = 0.15f },
+      .direction = 1, .ratio = ratio_joint, .max_speed = 0.1f },
     dt
 );
 
@@ -108,19 +110,19 @@ void Task_KFS_Arm_Init(void){
     // Init arm1 motor pair
     arm1_jointh_motor.PID_Omega.Init(
         1.0f
-        , 1.0f
+        , 0.5f
         , 0.0f
         , 0.0f
-        , 1.0f
-        , 2.0f
+        , 3.0f
+        , 3.0f
     );
     arm1_jointh_motor.PID_Angle.Init(
-        10.0f
+        5.0f
         , 0.0f
         , 0.0f
         , 0.0f
         , 10.0f
-        , 15.0f
+        , 4.0f
     );
     arm1_jointh_motor.Init(
         &hfdcan2
@@ -129,8 +131,8 @@ void Task_KFS_Arm_Init(void){
     );
 
     arm1_jointv_motor.PID_Omega.Init(
-        1.0f
-        , 5.0f
+        0.8f
+        , 0.5f
         , 0.0f
         , 0.0f
         , 3.0f
@@ -142,7 +144,7 @@ void Task_KFS_Arm_Init(void){
         , 0.0f
         , 0.0f
         , 10.0f
-        , 10.0f
+        , 4.0f
     );
     arm1_jointv_motor.Init(
         &hfdcan2
@@ -153,19 +155,19 @@ void Task_KFS_Arm_Init(void){
     // Init arm2 motor pair
     arm2_jointh_motor.PID_Omega.Init(
         1.0f
-        , 1.0f
+        , 0.5f
         , 0.0f
         , 0.0f
-        , 1.0f
-        , 2.0f
+        , 3.0f
+        , 3.0f
     );
     arm2_jointh_motor.PID_Angle.Init(
-        10.0f
+        5.0f
         , 0.0f
         , 0.0f
         , 0.0f
         , 10.0f
-        , 15.0f
+        , 4.0f
     );
     arm2_jointh_motor.Init(
         &hfdcan2
@@ -174,8 +176,8 @@ void Task_KFS_Arm_Init(void){
     );
 
     arm2_jointv_motor.PID_Omega.Init(
-        1.0f
-        , 5.0f
+        0.8f
+        , 0.5f
         , 0.0f
         , 0.0f
         , 3.0f
@@ -187,7 +189,7 @@ void Task_KFS_Arm_Init(void){
         , 0.0f
         , 0.0f
         , 10.0f
-        , 10.0f
+        , 4.0f
     );
     arm2_jointv_motor.Init(
         &hfdcan2
@@ -227,19 +229,20 @@ extern "C" void Task_KFS_Arm_Impl(){
         }
     }
 
-    float arm1v_encoder_val, arm2v_encoder_val, arm1h_encoder_val, arm2h_encoder_val;
+    static int16_t arm1v_encoder_val, arm2v_encoder_val, arm1h_encoder_val, arm2h_encoder_val;
+    
     // ===== 消费编码器队列（按时间顺序处理）=====
-    if (osMessageQueueGet(g_encoder0_queue, &arm1v_encoder_val, NULL, 0U) == osOK) {
-        arm1_kfs_arm.moveVerticallyTo(encoderToJointVPos(arm1v_encoder_val));
+    while (osMessageQueueGet(g_encoder0_queue, &arm1v_encoder_val, NULL, 0U) == osOK) {
+        arm1_kfs_arm.moveVerticallyTo(encoderToJointVPos((float)arm1v_encoder_val));
     }
-    if (osMessageQueueGet(g_encoder1_queue, &arm1h_encoder_val, NULL, 0U) == osOK) {
-        arm1_kfs_arm.reachOutTo(encoderToJointH1Pos(arm1h_encoder_val));
+    while (osMessageQueueGet(g_encoder1_queue, &arm1h_encoder_val, NULL, 0U) == osOK) {
+        arm1_kfs_arm.reachOutTo(encoderToJointH1Pos((float)arm1h_encoder_val));
     }
-    if (osMessageQueueGet(g_encoder2_queue, &arm2h_encoder_val, NULL, 0U) == osOK) {
-        arm2_kfs_arm.reachOutTo(encoderToJointH2Pos(arm2h_encoder_val));
+    while (osMessageQueueGet(g_encoder2_queue, &arm2h_encoder_val, NULL, 0U) == osOK) {
+        arm2_kfs_arm.reachOutTo(encoderToJointH2Pos((float)arm2h_encoder_val));
     }
-    if (osMessageQueueGet(g_encoder3_queue, &arm2v_encoder_val, NULL, 0U) == osOK) {
-        arm2_kfs_arm.moveVerticallyTo(encoderToJointVPos(arm2v_encoder_val));
+    while (osMessageQueueGet(g_encoder3_queue, &arm2v_encoder_val, NULL, 0U) == osOK) {
+        arm2_kfs_arm.moveVerticallyTo(encoderToJointVPos((float)arm2v_encoder_val));
     }
 
     // ===== 电机更新 =====
@@ -265,13 +268,13 @@ void KFS_Arms_Motors_CAN_RxCpltCallback(uint32_t id){
         case 0x201:
             arm2_jointh_motor.CAN_RxCpltCallback();
             break;
-        case 0x202:
+        case 0x203:
             arm1_jointv_motor.CAN_RxCpltCallback();
             break;
-        case 0x205:
+        case 0x202:
             arm2_jointv_motor.CAN_RxCpltCallback();
             break;
-        case 0x206:
+        case 0x204:
             arm1_jointh_motor.CAN_RxCpltCallback();
             break;
     }

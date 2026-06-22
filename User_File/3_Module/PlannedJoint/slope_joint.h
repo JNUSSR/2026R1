@@ -37,11 +37,12 @@ public:
         , config_(config) 
     {
         float ds = config.max_speed * dt; // 每次更新的最大位移
-        this->planner_.Init(ds, ds, Slope_First_REAL); // 斜坡函数的增减量都设为最大位移，优先级设为真实值优先
+        this->planner_.Init(ds, ds, Slope_First_TARGET); // 目标值优先：规划器不跳变，不受CAN反馈异常影响
     }
 
     bool IsWithinLimits(float target_val) const;
     void Move(float target);
+    void Move(float target, float /*duration*/) { Move(target); }  // 兼容 ArmSequencePlayer，duration 忽略
     bool IsMoving() const;
     void Update();
     void setZeroPos(float zero_pos);

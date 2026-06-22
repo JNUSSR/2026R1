@@ -25,7 +25,10 @@ union SuckerCmd_t {
     struct {
         bool sucker_a : 1;
         bool sucker_b : 1;
-        uint8_t reserved : 6;
+        bool up : 1;
+        bool down : 1;
+        bool arm_switch : 1;
+        uint8_t reserved : 3;
     };
 };
 

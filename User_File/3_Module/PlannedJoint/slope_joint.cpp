@@ -11,9 +11,8 @@ void SlopeJoint::Move(float target) {
 }
 
 void SlopeJoint::Update() {
-    float now_pos = this->cvrtAngleToJointPos(this->motor_.Get_Current_Angle());
-    this->planner_.Set_Now_Real(now_pos); // 将当前实际位置反馈给斜坡函数，确保规划的连续性
-    this->planner_.TIM_Calculate_PeriodElapsedCallback(); // 计算下一个位置
+    // Target 模式下无需反馈真实位置，规划器纯前馈平滑
+    this->planner_.TIM_Calculate_PeriodElapsedCallback();
     float next_pos = this->planner_.Get_Out();
     if (this->IsWithinLimits(next_pos)) {
         float target_angle = this->cvrtTargetToAngle(next_pos);

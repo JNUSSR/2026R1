@@ -5,6 +5,8 @@
 #include <cstdlib>
 #include <cstring>
 #include "ADC_TO_CHANNEL.h"
+#include "cmsis_os.h"
+#include "cmsis_os2.h"
 #include "drv_uart.h"
 #include "dvc_motor_dji.h"
 #include "kfs_arm.h"
@@ -48,6 +50,7 @@ extern "C" void Task_UART_Init(void) {
     g_encoder1_queue = osMessageQueueNew(3, sizeof(int16_t), NULL);
     g_encoder2_queue = osMessageQueueNew(3, sizeof(int16_t), NULL);
     g_encoder3_queue = osMessageQueueNew(3, sizeof(int16_t), NULL);
+
     // g_adc_queue = osMessageQueueNew(1,sizeof(mavlink_adc_t), NULL);
     UART_Init(&huart7, UartCallback);
 }
@@ -84,6 +87,7 @@ void Uart_Task() {
 
                             osMessageQueuePut(g_encoder0_queue, &encoder_0, 0U, 0U);
                             osMessageQueuePut(g_encoder1_queue, &encoder_1, 0U, 0U);
+
                             osMessageQueuePut(g_encoder2_queue, &encoder_2, 0U, 0U);
                             osMessageQueuePut(g_encoder3_queue, &encoder_3, 0U, 0U);
                             //动作
@@ -93,6 +97,9 @@ void Uart_Task() {
                             SuckerCmd_t sucker_cmd;
                             sucker_cmd.sucker_a = action_cmd.sucker_a;
                             sucker_cmd.sucker_b = action_cmd.sucker_b;
+                            sucker_cmd.up = action_cmd.act4;
+                            sucker_cmd.down = action_cmd.act6;
+                            sucker_cmd.arm_switch = action_cmd.act5;
                             osMessageQueuePut(g_sucker_ctrl_queue, &sucker_cmd, 0U, 0U);
 
                             //TODO 夹爪命令解析

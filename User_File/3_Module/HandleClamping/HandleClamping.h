@@ -20,7 +20,7 @@
 #define HANDLE_MOTOR_CALIBRATE_OMEGA      (0.8f)            //位置模式的最大限幅速度
 #define HANDLE_MOTOR_CALIBRATE_TORQUE_MAX (5.0f)
 #define HANDLE_MOTOR_CONTROL_OMEGA        (1.0f)            //位置模式的最大限幅速度
-#define HANDLE_MOTOR_INIT_INCREANGLE      (-30.144f)         //电机上电后复位到垂直角度的角度增量
+#define HANDLE_MOTOR_INIT_INCREANGLE      (0.0f)         //电机上电后复位到垂直角度的角度增量
 #define HANDLE_POS_REACH_INCREANGLE       (-2.68f)           //从垂直角度到夹取角度的角度增量
 #define HANDLE_POS_ABUTTING_INCREANGLE    (30.144f)         //从垂直角度到对接角度的角度增量
 /*========================================

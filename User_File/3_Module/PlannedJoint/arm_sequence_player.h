@@ -1,6 +1,7 @@
 #pragma once
 
 #include "planned_joint.h"
+#include <cmath>
 
 #define ARRAY_LEN(arr) (sizeof(arr) / sizeof(arr[0]))
 // 单个关节的动作指令
@@ -20,19 +21,17 @@ struct ArmStep {
     void *context = nullptr; // 可选的上下文指针，供 custom_action 使用
 };
 
-// 带有模板参数 N 的播放器类
-template <size_t N>
+// 带有模板参数 N 的播放器类，JointT 默认为 PlannedJoint，也可传入 SlopeJoint
+template <size_t N, typename JointT = PlannedJoint>
 class ArmSequencePlayer {
 public:
-    // 变长参数模板构造函数，可以直接接收任意数量的 PlannedJoint&
+    // 变长参数模板构造函数，可以直接接收任意数量的 JointT&
     template <typename... Joints>
     ArmSequencePlayer(Joints&... joints)
         : state_(IDLE), current_sequence_(nullptr), joints_{ &joints... }
     {
-        // 编译期断言：确保传入的引用数量等于实例化的模板参数 N
         static_assert(sizeof...(Joints) == N, "传入的关节数量与实例化模板的 N 不匹配!");
     }
-
 
     void setContext(void* ctx) { context_ = ctx; }
 
@@ -66,9 +65,7 @@ public:
             // 遍历并下发 N 个关节的指令
             for (size_t i = 0; i < N; ++i) {
                 const auto& cmd = step.cmds[i];
-                // duration == 0 → 跳过该关节
                 if (cmd.duration == 0.0f) continue;
-                // target == NAN → "空等"，设目标为当前位置
                 if (std::isnan(cmd.target)) {
                     joints_[i]->Move(joints_[i]->getCurrentTarget(), cmd.duration);
                 } else {
@@ -80,7 +77,6 @@ public:
         }
         else if (state_ == WAITING_STEP) {
             bool all_finished = true;
-            // 检查所有的轴是否都已经运动完毕
             for (size_t i = 0; i < N; ++i) {
                 if (joints_[i]->IsMoving()) {
                     all_finished = false;
@@ -91,9 +87,9 @@ public:
             if (all_finished) {
                 current_step_index_++;
                 if (current_step_index_ >= total_steps_) {
-                    state_ = IDLE; // 完成
+                    state_ = IDLE;
                 } else {
-                    state_ = RUNNING_STEP; // 下一步
+                    state_ = RUNNING_STEP;
                 }
             }
         }
@@ -108,6 +104,5 @@ private:
     uint16_t current_step_index_;
     void* context_ = nullptr;
 
-    // 内部存放各个关节引用的指针数组
-    PlannedJoint* joints_[N];
+    JointT* joints_[N];
 };
