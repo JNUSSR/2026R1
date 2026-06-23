@@ -21,6 +21,10 @@ public:
     void tightenClaw();
     void stopJointV();
 
+    bool isJointVMoving()        { return joint_v.IsMoving(); }
+    void setJointVMaxSpeed(float speed) { joint_v.setMaxSpeed(speed); }
+    void resumeJointVMaxSpeed()         { joint_v.resumeDefaultSpeed(); }
+
     float getJointVCurPos()    { return joint_v.getCurrentTarget(); }
     float getJointVCurTorque() { return joint_v.getCurrentTorque(); }
 

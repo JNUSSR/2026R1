@@ -44,6 +44,10 @@ public:
 
     inline float Get_Out() const;
 
+    inline bool Is_Running() const{
+        return (Now_Planning != Target);
+    }
+
     inline void Set_Now_Real(const float &__Now_Real);
 
     inline void Set_Increase_Value(const float &__Increase_Value);
